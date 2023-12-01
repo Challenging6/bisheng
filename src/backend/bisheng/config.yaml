@@ -1,18 +1,16 @@
 # 数据库配置
 database_url:
-  "mysql+pymysql://root:1234@localhost:3306/bisheng?charset=utf8mb4"
+  "mysql+pymysql://root:1234@localhost:3306/bisheng"
+ #"mysql+pymysql://root:1234@mysql:3306/bisheng?charset=utf8mb4"
 
 # 缓存配置  redis://[[username]:[password]]@localhost:6379/0
-redis_url: "redis://redis:6379/0"
-
-environment:
-  env: dev
-  uns_support: ['png','jpg','jpeg','bmp','doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'md', 'html', 'pdf']
+# redis_url: "redis://redis:6379/0"
+redis_url: "redis://localhost:6379/0"
 
 # admin 用户配置
 admin:
   user_name: "admin"
-  password: "1234"
+  password: "aistrong"
       
 agents:
   ZeroShotAgent:
@@ -34,13 +32,16 @@ chains:
     documentation: ""
   SequentialChain:
     documentation: ""
+
   LLMChain:
     documentation: "https://python.langchain.com/docs/modules/chains/foundational/llm_chain"
   LLMMathChain:
     documentation: "https://python.langchain.com/docs/modules/chains/additional/llm_math"
   LLMCheckerChain:
     documentation: "https://python.langchain.com/docs/modules/chains/additional/llm_checker"
-  ConversationChain:
+  # ConversationChain:
+  #   documentation: ""
+  BaseChatChain:
     documentation: ""
   SeriesCharacterChain:
     documentation: ""
@@ -116,6 +117,8 @@ embeddings:
     documentation: "https://python.langchain.com/docs/modules/data_connection/text_embedding/integrations/openai"
   HuggingFaceEmbeddings:
     documentation: "https://python.langchain.com/docs/modules/data_connection/text_embedding/integrations/sentence_transformers"
+  HuggingFaceBgeEmbeddings:
+    documentation:
   CohereEmbeddings:
     documentation: "https://python.langchain.com/docs/modules/data_connection/text_embedding/integrations/cohere"
   WenxinEmbeddings:
@@ -162,6 +165,8 @@ llms:
   HostQwenChat:
     documentation: ""
   CustomLLMChat:
+    documentation: ""
+  FastChat:
     documentation: ""
   ###
   # There's a bug in this component deactivating until we get it sorted: _language_models.py", line 804, in send_message
@@ -301,10 +306,16 @@ retrievers:
     documentation: ""
   MultiQueryRetriever:
     documentation: "https://python.langchain.com/docs/modules/data_connection/retrievers/how_to/MultiQueryRetriever"
+  ElasticSearchBM25Retriever:
+    documentation:
+  EnsembleRetriever:
+    documentation:
   # https://github.com/supabase-community/supabase-py/issues/482
   # ZepRetriever:
   #   documentation: "https://python.langchain.com/docs/modules/data_connection/retrievers/integrations/zep_memorystore"
 vectorstores:
+  ElasticsearchStore:
+    documentation:
   ElasticKeywordsSearch:
     documentation: "http://192.168.106.116:8030"
   Milvus:
@@ -344,5 +355,6 @@ input_output:
     documentation: ""
   InputFile:
     documentation: ""
+
 
 

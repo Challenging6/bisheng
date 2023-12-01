@@ -7,7 +7,7 @@ from typing import Dict, Optional
 from bisheng.template.frontend_node.constants import FORCE_SHOW_FIELDS
 from bisheng.utils import constants
 from docstring_parser import parse  # type: ignore
-
+from langchain.base_language import BaseLanguageModel
 
 def build_template_from_function(name: str, type_to_loader_dict: Dict, add_function: bool = False):
     classes = [item.__annotations__['return'].__name__ for item in type_to_loader_dict.values()]
@@ -147,7 +147,6 @@ def build_template_from_method(
             # Adding function to base classes to allow the output to be a function
             if add_function:
                 base_classes.append('function')
-
             return {
                 'template': format_dict(variables, class_name),
                 'description': docs.short_description or '',
@@ -276,6 +275,10 @@ def format_dict(d, name: Optional[str] = None):
         if key == 'headers':
             value['value'] = """{'Authorization':
             'Bearer <token>'}"""
+
+        # if name in ['ConversationChain', 'LLMChain'] and key == 'llm':
+        #     value['type'] = 'Runnable'
+            
         # Add options to openai
         if name == 'OpenAI' and key == 'model_name':
             value['options'] = constants.OPENAI_MODELS

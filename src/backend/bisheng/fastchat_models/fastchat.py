@@ -1,12 +1,11 @@
 """proxy llm chat wrapper."""
 from __future__ import annotations
 
-import json
 import logging
 import sys
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
-
-from bisheng_langchain.utils import requests
+import json 
+# import requests
 from langchain.callbacks.manager import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun
 from langchain.chat_models.base import BaseChatModel
 from langchain.schema import ChatGeneration, ChatResult
@@ -16,6 +15,10 @@ from langchain.utils import get_from_dict_or_env
 from pydantic import Field, root_validator
 from tenacity import (before_sleep_log, retry, retry_if_exception_type, stop_after_attempt,
                       wait_exponential)
+import asyncio
+from openai import AsyncOpenAI
+from .interface import OpenaiChatCompletion
+from .interface.types import ChatInput 
 
 if TYPE_CHECKING:
     import tiktoken
@@ -33,7 +36,7 @@ def _import_tiktoken() -> Any:
     return tiktoken
 
 
-def _create_retry_decorator(llm: ProxyChatLLM) -> Callable[[Any], Any]:
+def _create_retry_decorator(llm: FastChat) -> Callable[[Any], Any]:
 
     min_seconds = 1
     max_seconds = 20
@@ -53,7 +56,8 @@ def _convert_dict_to_message(_dict: Mapping[str, Any]) -> BaseMessage:
     if role == 'user':
         return HumanMessage(content=_dict['content'])
     elif role == 'assistant':
-        content = _dict['content'] or ''  # OpenAI returns None for tool invocations
+        content = _dict[
+            'content'] or ''  # OpenAI returns None for tool invocations
         if _dict.get('function_call'):
             additional_kwargs = {'function_call': dict(_dict['function_call'])}
         else:
@@ -75,7 +79,8 @@ def _convert_message_to_dict(message: BaseMessage) -> dict:
     elif isinstance(message, AIMessage):
         message_dict = {'role': 'assistant', 'content': message.content}
         if 'function_call' in message.additional_kwargs:
-            message_dict['function_call'] = message.additional_kwargs['function_call']
+            message_dict['function_call'] = message.additional_kwargs[
+                'function_call']
     elif isinstance(message, SystemMessage):
         message_dict = {'role': 'system', 'content': message.content}
     elif isinstance(message, FunctionMessage):
@@ -91,41 +96,40 @@ def _convert_message_to_dict(message: BaseMessage) -> dict:
     return message_dict
 
 
-class ProxyChatLLM(BaseChatModel):
+class FastChat(BaseChatModel):
     """Wrapper around proxy Chat large language models.
 
-    To use, the environment variable ``ELEMAI_API_KEY`` set with your API key.
+    To use, the environment variable ``API_KEY`` set with your API key.
 
     Example:
         .. code-block:: python
 
-            from bisheng_langchain.chat_models import ProxyChatLLM
-            proxy_chat_llm = ProxyChatLLM(model_name="chatglm_std")
+            from bisheng_langchain.chat_models import ChatWenxin
+            chat_miniamaxai = ChatWenxin(model_name="ernie-bot")
     """
 
     client: Optional[Any]  #: :meta private:
     """Model name to use."""
-    model_name: str = Field('chatglm_std', alias='model')
-
-    temperature: float = 0.7
-    top_p: float = 0.9
+    model_name: str = Field('Qwen-14B-Chat-Int4', alias='model')
+   
+    temperature: float = 0.95
+    top_p: float = 0.8
     """What sampling temperature to use."""
     model_kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
     """Holds any model parameters valid for `create` call not explicitly specified."""
-    elemai_api_key: Optional[str] = None
-    elemai_base_url: Optional[str] = None
-
-    headers: Optional[Dict[str, str]] = Field(default_factory=dict)
+    api_key: Optional[str] = None
+    api_base_url: str = "http://localhost:8000/v1"
+    #secret_key: Optional[str] = None
 
     request_timeout: Optional[Union[float, Tuple[float, float]]] = None
     """Timeout for requests to OpenAI completion API. Default is 600 seconds."""
-    max_retries: Optional[int] = 0
+    max_retries: Optional[int] = 6
     """Maximum number of retries to make when generating."""
-    streaming: Optional[bool] = False
+    streaming: Optional[bool] = True
     """Whether to stream the results or not."""
     n: Optional[int] = 1
     """Number of chat completions to generate for each prompt."""
-    max_tokens: Optional[int] = 2048
+    max_tokens: Optional[int] = 1024
     """Maximum number of tokens to generate."""
     tiktoken_model_name: Optional[str] = None
     """The model name to pass to tiktoken when using this class.
@@ -137,6 +141,7 @@ class ProxyChatLLM(BaseChatModel):
     when using one of the many model providers that expose an OpenAI-like
     API but with different models. In those cases, in order to avoid erroring
     when tiktoken is called, you can specify a model name to use here."""
+    verbose: Optional[bool] = False
 
     class Config:
         """Configuration for this pydantic object."""
@@ -146,27 +151,27 @@ class ProxyChatLLM(BaseChatModel):
     @root_validator()
     def validate_environment(cls, values: Dict) -> Dict:
         """Validate that api key and python package exists in environment."""
-        values['elemai_api_key']  = get_from_dict_or_env(values, 'elemai_api_key', 'ELEMAI_API_KEY')
 
-        values['elemai_base_url'] = get_from_dict_or_env(values, 'elemai_base_url',
-                                                         'ELEMAI_BASE_URL')
+        values['api_base_url'] = get_from_dict_or_env(values, 'api_base_url', 'API_BASE_URL')
+        values['api_key'] = "EMPTY"
+        # values['streaming'] = get_from_dict_or_env(values, 'streaming', 'STREAMING')
+       
 
-        elemai_api_key = values['elemai_api_key']
-        values['headers'] = {
-            'Authorization': f'Bearer {elemai_api_key}',
-            'Content-Type': 'application/json'
-        }
-
+        api_key = values['api_key']
+        api_base_url = values['api_base_url']
+        
+        # secret_key = values['wenxin_secret_key']    
         try:
-            values['client'] = requests.Requests(headers=values['headers'])
+            values['client'] = OpenaiChatCompletion(api_key, api_base_url)
+            
         except AttributeError:
-            raise ValueError('Try upgrading it with `pip install --upgrade requests`.')
+            raise ValueError(
+                'Try upgrading it with `pip install --upgrade requests`.')
         return values
 
     @property
     def _default_params(self) -> Dict[str, Any]:
-        """Get the default parameters for calling ProxyChatLLM API."""
-        self.client.request_timeout = self.request_timeout
+        """Get the default parameters for calling ChatWenxin API."""
         return {
             'model': self.model_name,
             'temperature': self.temperature,
@@ -189,13 +194,10 @@ class ProxyChatLLM(BaseChatModel):
                 'model': self.model_name,
                 'top_p': top_p,
                 'temperature': temperature,
-                'max_tokens': max_tokens,
-                'stop': kwargs.get('stop', None),
-                'function_call': kwargs.get('function_call', None),
-                'functions': kwargs.get('functions', [])
+                'max_tokens': max_tokens
             }
-            response = self.client.post(self.elemai_base_url, data=params)
-            return response.json()
+            return self.client(ChatInput.parse_obj(params),
+                               self.verbose).dict()
 
         return _completion_with_retry(**kwargs)
 
@@ -211,7 +213,10 @@ class ProxyChatLLM(BaseChatModel):
                     overall_token_usage[k] += v
                 else:
                     overall_token_usage[k] = v
-        return {'token_usage': overall_token_usage, 'model_name': self.model_name}
+        return {
+            'token_usage': overall_token_usage,
+            'model_name': self.model_name
+        }
 
     def _generate(
         self,
@@ -224,26 +229,9 @@ class ProxyChatLLM(BaseChatModel):
         params = {**params, **kwargs}
 
         response = self.completion_with_retry(messages=message_dicts, **params)
+
         return self._create_chat_result(response)
 
-    async def acompletion_with_retry(self, **kwargs: Any) -> Any:
-        """Use tenacity to retry the async completion call."""
-        retry_decorator = _create_retry_decorator(self)
-
-        @retry_decorator
-        async def _acompletion_with_retry(**kwargs: Any) -> Any:
-            # Use OpenAI's async api https://github.com/openai/openai-python#async-api
-            async with self.client.apost(url=self.elemai_base_url, data=kwargs) as response:
-                async for txt in response.content.iter_any():
-                    if b'\n' in txt:
-                        for txt_ in txt.split(b'\n'):
-                            yield txt_.decode('utf-8').strip()
-                    else:
-                        yield txt.decode('utf-8').strip()
-
-        async for response in _acompletion_with_retry(**kwargs):
-            if response:
-                yield json.loads(response)
 
     async def _agenerate(
         self,
@@ -255,16 +243,23 @@ class ProxyChatLLM(BaseChatModel):
         message_dicts, params = self._create_message_dicts(messages, stop)
         params = {**params, **kwargs}
         if self.streaming:
+            
             inner_completion = ''
-            role = 'assistant'
+            role_define = 'assistant'
             params['stream'] = True
             function_call: Optional[dict] = None
-            async for stream_resp in self.acompletion_with_retry(messages=message_dicts, **params):
+            
+            res = await AsyncOpenAI(api_key="EMPTY", base_url=self.api_base_url).with_options(max_retries=5).chat.completions.create(messages=message_dicts,**params) 
+            
+            async for stream_resp in res:
+             
+                role  = stream_resp.choices[0].delta.role
+                token = stream_resp.choices[0].delta.content
+                role  = role  if role   else role_define 
+                token = token if token  else ""
 
-                role = stream_resp['choices'][0]['delta'].get('role', role)
-                token = stream_resp['choices'][0]['delta'].get('content', '')
                 inner_completion += token or ''
-                _function_call = stream_resp['choices'][0]['delta'].get('function_call')
+                _function_call = stream_resp.choices[0].delta.function_call
                 if _function_call:
                     if function_call is None:
                         function_call = _function_call
@@ -272,23 +267,27 @@ class ProxyChatLLM(BaseChatModel):
                         function_call['arguments'] += _function_call['arguments']
                 if run_manager:
                     await run_manager.on_llm_new_token(token)
+            
             message = _convert_dict_to_message({
                 'content': inner_completion,
-                'role': role,
+                'role': role_define,
                 'function_call': function_call,
             })
             return ChatResult(generations=[ChatGeneration(message=message)])
         else:
-            response = await self.acompletion_with_retry(messages=message_dicts, **params)
+            response = self.completion_with_retry(messages=message_dicts, **params)
             return self._create_chat_result(response)
 
+ 
+
     def _create_message_dicts(
-            self, messages: List[BaseMessage],
-            stop: Optional[List[str]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        self, messages: List[BaseMessage], stop: Optional[List[str]]
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         params = dict(self._client_params)
         if stop is not None:
             if 'stop' in params:
-                raise ValueError('`stop` found in both the input and default params.')
+                raise ValueError(
+                    '`stop` found in both the input and default params.')
             params['stop'] = stop
 
         message_dicts = [_convert_message_to_dict(m) for m in messages]
@@ -297,14 +296,15 @@ class ProxyChatLLM(BaseChatModel):
 
     def _create_chat_result(self, response: Mapping[str, Any]) -> ChatResult:
         generations = []
-        if 'choices' not in response:
-            raise Exception(f'LLM return error {response}')
         for res in response['choices']:
             message = _convert_dict_to_message(res['message'])
             gen = ChatGeneration(message=message)
             generations.append(gen)
 
-        llm_output = {'token_usage': response['usage'], 'model_name': self.model_name}
+        llm_output = {
+            'token_usage': response['usage'],
+            'model_name': self.model_name
+        }
         return ChatResult(generations=generations, llm_output=llm_output)
 
     @property
@@ -314,13 +314,11 @@ class ProxyChatLLM(BaseChatModel):
 
     @property
     def _client_params(self) -> Mapping[str, Any]:
-        """Get the parameters used for the elemai client."""
-        elemai_creds: Dict[str, Any] = {
-            'api_key': self.elemai_api_key,
-            'base_url': self.elemai_base_url,
+        """Get the parameters used for the client."""
+        fastchat_creds: Dict[str, Any] = {
             'model': self.model_name,
         }
-        return {**elemai_creds, **self._default_params}
+        return {**fastchat_creds, **self._default_params}
 
     def _get_invocation_params(self,
                                stop: Optional[List[str]] = None,
@@ -336,7 +334,7 @@ class ProxyChatLLM(BaseChatModel):
     @property
     def _llm_type(self) -> str:
         """Return type of chat model."""
-        return 'proxy-chat'
+        return 'fast-chat'
 
     def _get_encoding_model(self) -> Tuple[str, tiktoken.Encoding]:
         tiktoken_ = _import_tiktoken()
@@ -349,7 +347,8 @@ class ProxyChatLLM(BaseChatModel):
         try:
             encoding = tiktoken_.encoding_for_model(model)
         except KeyError:
-            logger.warning('Warning: model not found. Using cl100k_base encoding.')
+            logger.warning(
+                'Warning: model not found. Using cl100k_base encoding.')
             model = 'cl100k_base'
             encoding = tiktoken_.get_encoding(model)
         return model, encoding

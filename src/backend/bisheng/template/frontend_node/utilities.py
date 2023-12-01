@@ -13,10 +13,11 @@ class UtilitiesFrontendNode(FrontendNode):
         # field.field_type could be "Literal['news', 'search', 'places', 'images']
         # we need to convert it to a list
         if 'Literal' in field.field_type:
-            field.options = ast.literal_eval(field.field_type.replace('Literal', ''))
+            field_type = field.field_type.replace("typing_extensions.", "")
+            field_type = field_type.replace("Literal", "")
+            field.options = ast.literal_eval(field_type)
             field.is_list = True
-            field.field_type = 'str'
-
+            field.field_type = "str"
         if isinstance(field.value, dict):
             field.field_type = 'code'
             field.value = json.dumps(field.value, indent=4)

@@ -210,15 +210,15 @@ class Vertex:
         """
         if self.base_type is None:
             raise ValueError(f'Base type for node {self.vertex_type} not found')
-        try:
-            result = loading.instantiate_class(
-                node_type=self.vertex_type,
-                base_type=self.base_type,
-                params=self.params,
-            )
-            self._update_built_object_and_artifacts(result)
-        except Exception as exc:
-            raise ValueError(f'Error building node {self.vertex_type}: {str(exc)}') from exc
+        # try:
+        result = loading.instantiate_class(
+            node_type=self.vertex_type,
+            base_type=self.base_type,
+            params=self.params,
+        )
+        self._update_built_object_and_artifacts(result)
+        # except Exception as exc:
+        #     raise ValueError(f'Error building node {self.vertex_type}: {str(exc)}') from exc
 
     def _update_built_object_and_artifacts(self, result):
         """

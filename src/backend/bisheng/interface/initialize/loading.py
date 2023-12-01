@@ -217,7 +217,7 @@ def instantiate_chains(node_type, class_object: Type[Chain], params: Dict):
         if class_method := getattr(class_object, method, None):
             return class_method(**params)
         raise ValueError(f'Method {method} not found in {class_object}')
-
+    
     return class_object(**params)
 
 

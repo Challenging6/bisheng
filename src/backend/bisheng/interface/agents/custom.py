@@ -1,14 +1,14 @@
 from typing import Any, List, Optional
 
 from bisheng.interface.base import CustomAgentExecutor
-from langchain import LLMChain
+from langchain.chains import LLMChain
 from langchain.agents import AgentExecutor, AgentType, Tool, ZeroShotAgent, initialize_agent
 from langchain.agents.agent_toolkits import (SQLDatabaseToolkit, VectorStoreInfo,
                                              VectorStoreRouterToolkit, VectorStoreToolkit)
 from langchain.agents.agent_toolkits.json.prompt import JSON_PREFIX, JSON_SUFFIX
 from langchain.agents.agent_toolkits.json.toolkit import JsonToolkit
-from langchain.agents.agent_toolkits.pandas.prompt import PREFIX as PANDAS_PREFIX
-from langchain.agents.agent_toolkits.pandas.prompt import SUFFIX_WITH_DF as PANDAS_SUFFIX
+# from langchain.agents.agent_toolkits.pandas.prompt import PREFIX as PANDAS_PREFIX
+# from langchain.agents.agent_toolkits.pandas.prompt import SUFFIX_WITH_DF as PANDAS_SUFFIX
 from langchain.agents.agent_toolkits.sql.prompt import SQL_PREFIX, SQL_SUFFIX
 from langchain.agents.agent_toolkits.vectorstore.prompt import PREFIX as VECTORSTORE_PREFIX
 from langchain.agents.agent_toolkits.vectorstore.prompt import \
@@ -17,7 +17,7 @@ from langchain.agents.mrkl.prompt import FORMAT_INSTRUCTIONS
 from langchain.base_language import BaseLanguageModel
 from langchain.memory.chat_memory import BaseChatMemory
 from langchain.sql_database import SQLDatabase
-from langchain.tools.python.tool import PythonAstREPLTool
+# from langchain.tools.python.tool import PythonAstREPLTool
 from langchain.tools.sql_database.prompt import QUERY_CHECKER
 
 
@@ -60,60 +60,60 @@ class JsonAgent(CustomAgentExecutor):
         return super().run(*args, **kwargs)
 
 
-class CSVAgent(CustomAgentExecutor):
-    """CSV agent"""
+# class CSVAgent(CustomAgentExecutor):
+#     """CSV agent"""
 
-    @staticmethod
-    def function_name():
-        return 'CSVAgent'
+#     @staticmethod
+#     def function_name():
+#         return 'CSVAgent'
 
-    @classmethod
-    def initialize(cls, *args, **kwargs):
-        return cls.from_toolkit_and_llm(*args, **kwargs)
+#     @classmethod
+#     def initialize(cls, *args, **kwargs):
+#         return cls.from_toolkit_and_llm(*args, **kwargs)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
 
-    @classmethod
-    def from_toolkit_and_llm(
-            cls,
-            path: str,
-            llm: BaseLanguageModel,
-            pandas_kwargs: Optional[dict] = None,
-            prefix: str = PANDAS_PREFIX,
-            suffix: str = PANDAS_SUFFIX,
-            format_instructions: str = FORMAT_INSTRUCTIONS,
-            input_variables: Optional[List[str]] = ['df_head', 'input', 'agent_scratchpad'],
-            **kwargs: Any):
-        import pandas as pd  # type: ignore
+#     @classmethod
+#     def from_toolkit_and_llm(
+#             cls,
+#             path: str,
+#             llm: BaseLanguageModel,
+#             pandas_kwargs: Optional[dict] = None,
+#             prefix: str = PANDAS_PREFIX,
+#             suffix: str = PANDAS_SUFFIX,
+#             format_instructions: str = FORMAT_INSTRUCTIONS,
+#             input_variables: Optional[List[str]] = ['df_head', 'input', 'agent_scratchpad'],
+#             **kwargs: Any):
+#         import pandas as pd  # type: ignore
 
-        _kwargs = pandas_kwargs or {}
-        df = pd.read_csv(path, **_kwargs)
+#         _kwargs = pandas_kwargs or {}
+#         df = pd.read_csv(path, **_kwargs)
 
-        tools = [PythonAstREPLTool(locals={'df': df})]  # type: ignore
-        prompt = ZeroShotAgent.create_prompt(
-            tools,
-            prefix=prefix,
-            suffix=suffix,
-            format_instructions=format_instructions,
-            input_variables=input_variables,
-        )
-        partial_prompt = prompt.partial(df_head=str(df.head()))
-        llm_chain = LLMChain(
-            llm=llm,
-            prompt=partial_prompt,
-        )
-        tool_names = {tool.name for tool in tools}
-        agent = ZeroShotAgent(
-            llm_chain=llm_chain,
-            allowed_tools=tool_names,
-            **kwargs  # type: ignore
-        )
+#         tools = [PythonAstREPLTool(locals={'df': df})]  # type: ignore
+#         prompt = ZeroShotAgent.create_prompt(
+#             tools,
+#             prefix=prefix,
+#             suffix=suffix,
+#             format_instructions=format_instructions,
+#             input_variables=input_variables,
+#         )
+#         partial_prompt = prompt.partial(df_head=str(df.head()))
+#         llm_chain = LLMChain(
+#             llm=llm,
+#             prompt=partial_prompt,
+#         )
+#         tool_names = {tool.name for tool in tools}
+#         agent = ZeroShotAgent(
+#             llm_chain=llm_chain,
+#             allowed_tools=tool_names,
+#             **kwargs  # type: ignore
+#         )
 
-        return cls.from_agent_and_tools(agent=agent, tools=tools, verbose=True)
+#         return cls.from_agent_and_tools(agent=agent, tools=tools, verbose=True)
 
-    def run(self, *args, **kwargs):
-        return super().run(*args, **kwargs)
+#     def run(self, *args, **kwargs):
+#         return super().run(*args, **kwargs)
 
 
 class VectorStoreAgent(CustomAgentExecutor):
@@ -318,7 +318,7 @@ class InitializeAgent(CustomAgentExecutor):
 
 CUSTOM_AGENTS = {
     'JsonAgent': JsonAgent,
-    'CSVAgent': CSVAgent,
+    # 'CSVAgent': CSVAgent,
     'AgentInitializer': InitializeAgent,
     'VectorStoreAgent': VectorStoreAgent,
     'VectorStoreRouterAgent': VectorStoreRouterAgent,

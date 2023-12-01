@@ -1,4 +1,4 @@
-from langchain import LLMChain
+from langchain.chains import LLMChain
 from langchain.agents import AgentExecutor, ZeroShotAgent
 from langchain.agents.agent_toolkits.json.prompt import (JSON_PREFIX,
                                                          JSON_SUFFIX)

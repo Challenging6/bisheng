@@ -51,7 +51,7 @@ def try_setting_streaming_options(langchain_object, websocket):
             llm.streaming = ChatConfig.streaming
         elif hasattr(llm, 'stream') and isinstance(llm.stream, bool):
             llm.stream = ChatConfig.streaming
-
+    
     return langchain_object
 
 

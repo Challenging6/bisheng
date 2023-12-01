@@ -332,7 +332,7 @@ class ChatManager:
         #             file_responses.append(msg)
         #         if msg.type == 'start':
         #             break
-
+        
         if not chat_id:
             # 只有L3用户给出详细的log
             response = ChatResponse(message='',

@@ -4,7 +4,8 @@ from bisheng.processing.base import get_result_and_steps
 from bisheng.utils.logger import logger
 from bisheng_langchain.chat_models import HostQwenChat
 from fastapi import WebSocket
-from langchain import LLMChain, PromptTemplate
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
 
 
 async def process_graph(
@@ -20,7 +21,6 @@ async def process_graph(
         raise ValueError(
             'There was an error loading the langchain_object. Please, check all the nodes and try again.'
         )
-
     # Generate result and thought
     try:
         if not chat_inputs.message:

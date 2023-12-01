@@ -5,7 +5,7 @@ from typing import Any, Type
 
 from bisheng.interface.wrappers.base import wrapper_creator
 from bisheng.utils import validate
-from langchain import PromptTemplate
+from langchain.prompts import PromptTemplate
 from langchain.agents import Agent
 from langchain.base_language import BaseLanguageModel
 from langchain.chains.base import Chain
@@ -38,7 +38,8 @@ def import_by_type(_type: str, name: str) -> Any:
         'llms': {
             'llm': import_llm,
             'chat': import_chat_llm,
-            'contribute': import_chain_contribute_llm
+            'contribute': import_chain_contribute_llm,
+            'fastchat': import_fastchat_llm,
         },
         'tools': import_tool,
         'chains': import_chain,
@@ -54,8 +55,18 @@ def import_by_type(_type: str, name: str) -> Any:
         'retrievers': import_retriever,
     }
     if _type == 'llms':
-        key = 'contribute' if name in chat_models.__all__ else 'chat' if 'chat' in name.lower(
-        ) else 'llm'
+        if 'fastchat' in name.lower():
+            key = 'fastchat'
+        elif name in chat_models.__all__:
+            key = 'contribute'
+        else:
+            if 'chat' in name.lower():
+                key = 'chat'
+            else:
+                key = 'llm'
+
+        # key = 'contribute' if name in chat_models.__all__ else 'chat' if 'chat' in name.lower(
+        # ) else 'llm'
         loaded_func = func_dict[_type][key]  # type: ignore
     else:
         loaded_func = func_dict[_type]
@@ -72,6 +83,9 @@ def import_chat_llm(llm: str) -> BaseChatModel:
     """Import chat llm from llm name"""
     return import_class(f'langchain.chat_models.{llm}')
 
+def import_fastchat_llm(llm: str) -> BaseChatModel:
+    """Import chat llm from llm name"""
+    return import_class(f'bisheng.fastchat_models.{llm}')
 
 def import_chain_contribute_llm(llm: str) -> BaseChatModel:
     """Import chat llm from llm name"""

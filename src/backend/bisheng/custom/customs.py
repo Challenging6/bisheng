@@ -28,6 +28,7 @@ CUSTOM_NODES = {
             frontend_node.memories.MongoDBChatMessageHistoryFrontendNode(),
     },
     'chains': {
+        'BaseChatChain':frontend_node.chains.BaseChatChainNode(),
         'SeriesCharacterChain': frontend_node.chains.SeriesCharacterChainNode(),
         'TimeTravelGuideChain': frontend_node.chains.TimeTravelGuideChainNode(),
         'MidJourneyPromptChain': frontend_node.chains.MidJourneyPromptChainNode(),

@@ -4,6 +4,7 @@ from bisheng.database.models.role_access import AccessType, RoleAccess
 from bisheng.graph.graph.base import Graph
 from bisheng.utils.logger import logger
 from sqlmodel import select
+import traceback
 
 API_WORDS = ['api', 'key', 'token']
 
@@ -121,6 +122,7 @@ def build_flow(graph_data: dict,
                 # to set the input_keys values
                 artifacts.update(vertex.artifacts)
         except Exception as exc:
+            traceback.print_exc()
             params = str(exc)
             valid = False
             response = {

@@ -4,7 +4,7 @@ from typing import List
 import requests
 from bisheng.utils.logger import logger
 from langchain.embeddings.base import Embeddings
-
+# from langchain.embeddings import HuggingFaceBgeEmbeddings
 
 class OpenAIProxyEmbedding(Embeddings):
 
@@ -26,6 +26,10 @@ class OpenAIProxyEmbedding(Embeddings):
         resp = requests.post('http://43.133.35.137:8080/query_embed', json=data)
         logger.info(f'texts={data}')
         return json.loads(resp.text).get('data')[0]
+
+
+
+
 
 
 CUSTOM_EMBEDDING = {

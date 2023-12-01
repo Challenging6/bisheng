@@ -6,7 +6,7 @@ import os
 import numpy as np
 import jieba.analyse
 from bisheng_langchain.chat_models import QwenChat
-from langchain import LLMChain, PromptTemplate
+from langchain.chains import LLMChain, PromptTemplate
 
 model_name = 'Qwen-7B-Chat'
 host_base_url = 'http://192.168.106.12:9001/v2.1/models'

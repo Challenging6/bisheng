@@ -121,6 +121,10 @@ class LLMFrontendNode(FrontendNode):
         ) or 'base' in field.name.lower():
             field.show = True
             field.advanced = False
+        # if 'streaming' in field.name.lower():
+        #     field.show = True
+        #     field.advanced = False          
+
 
     @staticmethod
     def format_llama_field(field: TemplateField):

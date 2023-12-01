@@ -1,12 +1,11 @@
 """proxy llm chat wrapper."""
 from __future__ import annotations
 
-import json
 import logging
 import sys
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
-from bisheng_langchain.utils import requests
+import requests
 from langchain.callbacks.manager import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun
 from langchain.chat_models.base import BaseChatModel
 from langchain.schema import ChatGeneration, ChatResult
@@ -14,8 +13,12 @@ from langchain.schema.messages import (AIMessage, BaseMessage, ChatMessage, Func
                                        HumanMessage, SystemMessage)
 from langchain.utils import get_from_dict_or_env
 from pydantic import Field, root_validator
+# from requests.exceptions import HTTPError
 from tenacity import (before_sleep_log, retry, retry_if_exception_type, stop_after_attempt,
                       wait_exponential)
+
+# from .interface import MinimaxChatCompletion
+# from .interface.types import ChatInput
 
 if TYPE_CHECKING:
     import tiktoken
@@ -33,7 +36,7 @@ def _import_tiktoken() -> Any:
     return tiktoken
 
 
-def _create_retry_decorator(llm: ProxyChatLLM) -> Callable[[Any], Any]:
+def _create_retry_decorator(llm: BaseHostChatLLM) -> Callable[[Any], Any]:
 
     min_seconds = 1
     max_seconds = 20
@@ -91,41 +94,33 @@ def _convert_message_to_dict(message: BaseMessage) -> dict:
     return message_dict
 
 
-class ProxyChatLLM(BaseChatModel):
-    """Wrapper around proxy Chat large language models.
-
-    To use, the environment variable ``ELEMAI_API_KEY`` set with your API key.
-
-    Example:
-        .. code-block:: python
-
-            from bisheng_langchain.chat_models import ProxyChatLLM
-            proxy_chat_llm = ProxyChatLLM(model_name="chatglm_std")
+class BaseHostChatLLM(BaseChatModel):
+    """Wrapper around base host Chat large language models.
     """
 
     client: Optional[Any]  #: :meta private:
     """Model name to use."""
-    model_name: str = Field('chatglm_std', alias='model')
+    model_name: str = Field('', alias='model')
 
-    temperature: float = 0.7
-    top_p: float = 0.9
+    temperature: float = 0.9
+    top_p: float = 0.95
+    do_sample: bool = False
+    """Number of chat completions to generate for each prompt."""
+    max_tokens: int = 4096
     """What sampling temperature to use."""
     model_kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
     """Holds any model parameters valid for `create` call not explicitly specified."""
-    elemai_api_key: Optional[str] = None
-    elemai_base_url: Optional[str] = None
+    host_base_url: Optional[str] = None
 
     headers: Optional[Dict[str, str]] = Field(default_factory=dict)
 
     request_timeout: Optional[Union[float, Tuple[float, float]]] = None
     """Timeout for requests to OpenAI completion API. Default is 600 seconds."""
-    max_retries: Optional[int] = 0
+    max_retries: Optional[int] = 1
     """Maximum number of retries to make when generating."""
     streaming: Optional[bool] = False
     """Whether to stream the results or not."""
     n: Optional[int] = 1
-    """Number of chat completions to generate for each prompt."""
-    max_tokens: Optional[int] = 2048
     """Maximum number of tokens to generate."""
     tiktoken_model_name: Optional[str] = None
     """The model name to pass to tiktoken when using this class.
@@ -138,6 +133,8 @@ class ProxyChatLLM(BaseChatModel):
     API but with different models. In those cases, in order to avoid erroring
     when tiktoken is called, you can specify a model name to use here."""
 
+    verbose: Optional[bool] = False
+
     class Config:
         """Configuration for this pydantic object."""
 
@@ -146,32 +143,23 @@ class ProxyChatLLM(BaseChatModel):
     @root_validator()
     def validate_environment(cls, values: Dict) -> Dict:
         """Validate that api key and python package exists in environment."""
-        values['elemai_api_key']  = get_from_dict_or_env(values, 'elemai_api_key', 'ELEMAI_API_KEY')
-
-        values['elemai_base_url'] = get_from_dict_or_env(values, 'elemai_base_url',
-                                                         'ELEMAI_BASE_URL')
-
-        elemai_api_key = values['elemai_api_key']
-        values['headers'] = {
-            'Authorization': f'Bearer {elemai_api_key}',
-            'Content-Type': 'application/json'
-        }
-
+        values['host_base_url'] = get_from_dict_or_env(values, 'host_base_url', 'HostBaseUrl')
         try:
-            values['client'] = requests.Requests(headers=values['headers'])
+            values['client'] = requests.post
         except AttributeError:
             raise ValueError('Try upgrading it with `pip install --upgrade requests`.')
         return values
 
     @property
     def _default_params(self) -> Dict[str, Any]:
-        """Get the default parameters for calling ProxyChatLLM API."""
-        self.client.request_timeout = self.request_timeout
+        """Get the default parameters for calling ChatMinimaxAI API."""
         return {
+            'request_timeout': self.request_timeout,
             'model': self.model_name,
             'temperature': self.temperature,
             'top_p': self.top_p,
             'max_tokens': self.max_tokens,
+            'do_sample': self.do_sample,
             **self.model_kwargs,
         }
 
@@ -184,18 +172,28 @@ class ProxyChatLLM(BaseChatModel):
             temperature = kwargs.get('temperature')
             top_p = kwargs.get('top_p')
             max_tokens = kwargs.get('max_tokens')
+            do_sample = kwargs.get('do_sample')
             params = {
                 'messages': messages,
                 'model': self.model_name,
                 'top_p': top_p,
                 'temperature': temperature,
                 'max_tokens': max_tokens,
-                'stop': kwargs.get('stop', None),
-                'function_call': kwargs.get('function_call', None),
-                'functions': kwargs.get('functions', [])
+                'do_sample': do_sample
             }
-            response = self.client.post(self.elemai_base_url, data=params)
-            return response.json()
+
+            if self.verbose:
+                print('payload', params)
+
+            url = f'{self.host_base_url}/{self.model_name}/infer'
+            resp = self.client(url=url, json=params).json()
+
+            if not resp.get('choices', []):
+                logger.error(f'host_llm_response response={resp}')
+                raise ValueError('empty choices in llm chat result')
+
+            resp['usage'] = {}
+            return resp
 
         return _completion_with_retry(**kwargs)
 
@@ -206,6 +204,9 @@ class ProxyChatLLM(BaseChatModel):
                 # Happens in streaming
                 continue
             token_usage = output['token_usage']
+            if token_usage is None:
+                continue
+
             for k, v in token_usage.items():
                 if k in overall_token_usage:
                     overall_token_usage[k] += v
@@ -222,28 +223,8 @@ class ProxyChatLLM(BaseChatModel):
     ) -> ChatResult:
         message_dicts, params = self._create_message_dicts(messages, stop)
         params = {**params, **kwargs}
-
         response = self.completion_with_retry(messages=message_dicts, **params)
         return self._create_chat_result(response)
-
-    async def acompletion_with_retry(self, **kwargs: Any) -> Any:
-        """Use tenacity to retry the async completion call."""
-        retry_decorator = _create_retry_decorator(self)
-
-        @retry_decorator
-        async def _acompletion_with_retry(**kwargs: Any) -> Any:
-            # Use OpenAI's async api https://github.com/openai/openai-python#async-api
-            async with self.client.apost(url=self.elemai_base_url, data=kwargs) as response:
-                async for txt in response.content.iter_any():
-                    if b'\n' in txt:
-                        for txt_ in txt.split(b'\n'):
-                            yield txt_.decode('utf-8').strip()
-                    else:
-                        yield txt.decode('utf-8').strip()
-
-        async for response in _acompletion_with_retry(**kwargs):
-            if response:
-                yield json.loads(response)
 
     async def _agenerate(
         self,
@@ -252,35 +233,7 @@ class ProxyChatLLM(BaseChatModel):
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        message_dicts, params = self._create_message_dicts(messages, stop)
-        params = {**params, **kwargs}
-        if self.streaming:
-            inner_completion = ''
-            role = 'assistant'
-            params['stream'] = True
-            function_call: Optional[dict] = None
-            async for stream_resp in self.acompletion_with_retry(messages=message_dicts, **params):
-
-                role = stream_resp['choices'][0]['delta'].get('role', role)
-                token = stream_resp['choices'][0]['delta'].get('content', '')
-                inner_completion += token or ''
-                _function_call = stream_resp['choices'][0]['delta'].get('function_call')
-                if _function_call:
-                    if function_call is None:
-                        function_call = _function_call
-                    else:
-                        function_call['arguments'] += _function_call['arguments']
-                if run_manager:
-                    await run_manager.on_llm_new_token(token)
-            message = _convert_dict_to_message({
-                'content': inner_completion,
-                'role': role,
-                'function_call': function_call,
-            })
-            return ChatResult(generations=[ChatGeneration(message=message)])
-        else:
-            response = await self.acompletion_with_retry(messages=message_dicts, **params)
-            return self._create_chat_result(response)
+        return self._generate(messages, stop, run_manager, **kwargs)
 
     def _create_message_dicts(
             self, messages: List[BaseMessage],
@@ -314,13 +267,11 @@ class ProxyChatLLM(BaseChatModel):
 
     @property
     def _client_params(self) -> Mapping[str, Any]:
-        """Get the parameters used for the elemai client."""
-        elemai_creds: Dict[str, Any] = {
-            'api_key': self.elemai_api_key,
-            'base_url': self.elemai_base_url,
+        """Get the parameters used for the client."""
+        minimaxai_creds: Dict[str, Any] = {
             'model': self.model_name,
         }
-        return {**elemai_creds, **self._default_params}
+        return {**minimaxai_creds, **self._default_params}
 
     def _get_invocation_params(self,
                                stop: Optional[List[str]] = None,
@@ -336,7 +287,7 @@ class ProxyChatLLM(BaseChatModel):
     @property
     def _llm_type(self) -> str:
         """Return type of chat model."""
-        return 'proxy-chat'
+        return 'host_chat_llm'
 
     def _get_encoding_model(self) -> Tuple[str, tiktoken.Encoding]:
         tiktoken_ = _import_tiktoken()
@@ -393,3 +344,110 @@ class ProxyChatLLM(BaseChatModel):
         # every reply is primed with <im_start>assistant
         num_tokens += 3
         return num_tokens
+
+
+class HostChatGLM2(BaseHostChatLLM):
+    # chatglm2-12b, chatglm2-6b
+    model_name: str = Field('chatglm2-6b', alias='model')
+
+    temperature: float = 0.95
+    top_p: float = 0.7
+    max_tokens: int = 4096
+
+    @property
+    def _llm_type(self) -> str:
+        """Return type of chat model."""
+        return 'chatglm2'
+
+
+class HostBaichuanChat(BaseHostChatLLM):
+    # Baichuan-7B-Chat, Baichuan-13B-Chat
+    model_name: str = Field('Baichuan-13B-Chat', alias='model')
+
+    temperature: float = 0.3
+    top_p: float = 0.85
+    max_tokens: int = 8192
+
+    @property
+    def _llm_type(self) -> str:
+        """Return type of chat model."""
+        return 'baichuan_chat'
+
+
+class HostQwenChat(BaseHostChatLLM):
+    # Qwen-7B-Chat
+    model_name: str = Field('Qwen-7B-Chat', alias='model')
+
+    temperature: float = 0
+    top_p: float = 0.5
+    max_tokens: int = 8192
+
+    @property
+    def _llm_type(self) -> str:
+        """Return type of chat model."""
+        return 'qwen_chat'
+
+
+class HostLlama2Chat(BaseHostChatLLM):
+    # Llama-2-7b-chat-hf, Llama-2-13b-chat-hf, Llama-2-70b-chat-hf
+    model_name: str = Field('Llama-2-7b-chat-hf', alias='model')
+
+    temperature: float = 0.9
+    top_p: float = 0.6
+    max_tokens: int = 8192
+
+    @property
+    def _llm_type(self) -> str:
+        """Return type of chat model."""
+        return 'llama2_chat'
+
+
+class CustomLLMChat(BaseHostChatLLM):
+    # use custom llm chat api, api should compatiable with openai definition
+    model_name: str = Field('custom-llm-chat', alias='model')
+
+    temperature: float = 0.1
+    top_p: float = 0.1
+    max_tokens: int = 8192
+
+    @property
+    def _llm_type(self) -> str:
+        """Return type of chat model."""
+        return 'custom_llm_chat'
+
+    def completion_with_retry(self, **kwargs: Any) -> Any:
+        retry_decorator = _create_retry_decorator(self)
+
+        @retry_decorator
+        def _completion_with_retry(**kwargs: Any) -> Any:
+            messages = kwargs.get('messages')
+            temperature = kwargs.get('temperature')
+            top_p = kwargs.get('top_p')
+            max_tokens = kwargs.get('max_tokens')
+            do_sample = kwargs.get('do_sample')
+            params = {
+                'messages': messages,
+                'model': self.model_name,
+                'top_p': top_p,
+                'temperature': temperature,
+                'max_tokens': max_tokens,
+                'do_sample': do_sample
+            }
+
+            if self.verbose:
+                print('payload', params)
+
+            resp = self.client(url=self.host_base_url, json=params).json()
+            return resp
+
+        return _completion_with_retry(**kwargs)
+
+    def _create_chat_result(self, response: Mapping[str, Any]) -> ChatResult:
+        generations = []
+        for res in response['choices']:
+            message = _convert_dict_to_message(res['message'])
+            gen = ChatGeneration(message=message)
+            generations.append(gen)
+
+        llm_output = {'token_usage': response.get('usage', {}), 'model_name': self.model_name}
+        return ChatResult(generations=generations, llm_output=llm_output)

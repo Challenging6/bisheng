@@ -3,14 +3,14 @@ from typing import Dict, Optional, Type, Union
 from bisheng.interface.base import CustomChain
 from bisheng.interface.utils import extract_input_variables_from_prompt
 from bisheng_langchain.chains.question_answering import load_qa_chain
-from langchain import BasePromptTemplate
+from langchain.schema.prompt_template import BasePromptTemplate
 from langchain.base_language import BaseLanguageModel
 from langchain.chains import ConversationChain
 from langchain.chains.summarize import load_summarize_chain
 from langchain.memory.buffer import ConversationBufferMemory
 from langchain.schema import BaseMemory
 from pydantic import Field, root_validator
-
+from langchain.chains.conversation.prompt import PROMPT as ORIGIN_PROMPT
 DEFAULT_SUFFIX = """"
 Current conversation:
 {history}
@@ -84,6 +84,16 @@ class MidJourneyPromptChain(BaseCustomConversationChain):
     AI:"""  # noqa: E501
 
 
+class BaseChatChain(BaseCustomConversationChain):
+    template: Optional[
+        str
+    ] =  """The following is a friendly conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know.
+
+    Current conversation:
+    {history}
+    Human: {input}
+    AI:"""
+
 class TimeTravelGuideChain(BaseCustomConversationChain):
     template: Optional[
         str
@@ -148,6 +158,7 @@ class SummarizeDocsChain(CustomChain):
 
 
 CUSTOM_CHAINS: Dict[str, Type[Union[ConversationChain, CustomChain]]] = {
+    'BaseChatChain':BaseChatChain,
     'CombineDocsChain': CombineDocsChain,
     'SummarizeDocsChain': SummarizeDocsChain,
     'SeriesCharacterChain': SeriesCharacterChain,

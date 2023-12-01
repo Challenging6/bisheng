@@ -188,6 +188,38 @@ class TimeTravelGuideChainNode(FrontendNode):
         'ConversationChain',
     ]
 
+class BaseChatChainNode(FrontendNode):
+    name: str = 'BaseChatChain'
+    template: Template = Template(
+        type_name='BaseChatChain',
+        fields=[
+            TemplateField(
+                field_type='BaseLanguageModel',
+                required=True,
+                placeholder='',
+                is_list=False,
+                show=True,
+                advanced=False,
+                multiline=False,
+                name='llm',
+                display_name='LLM',
+            ),
+            TemplateField(
+                field_type='BaseChatMemory',
+                required=False,
+                show=True,
+                name='memory',
+                advanced=False,
+            ),
+        ],
+    )
+    description: str = 'BaseChatChain is a chain build simple chat'
+    base_classes: list[str] = [
+        'LLMChain',
+        'BaseCustomChain',
+        'Chain',
+        'ConversationChain',
+    ]
 
 class MidJourneyPromptChainNode(FrontendNode):
     name: str = 'MidJourneyPromptChain'
